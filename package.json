@@ -15,6 +15,6 @@
     "gen": "node scripts/gen-crud.js",
     "test": "npm --prefix server test"
   },
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=20.13" },
   "license": "MIT"
 }

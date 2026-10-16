@@ -6,7 +6,7 @@
 
 不用装数据库，`npm run setup && npm run dev` 两条命令就能跑起来；新增一个业务模块只要一条命令。
 
-![license](https://img.shields.io/badge/license-MIT-green) ![node](https://img.shields.io/badge/node-%3E%3D20-brightgreen) ![vue](https://img.shields.io/badge/Vue-3-42b883) ![uni-app](https://img.shields.io/badge/uni--app-H5%20%7C%20小程序-2b9939)
+![license](https://img.shields.io/badge/license-MIT-green) ![node](https://img.shields.io/badge/node-%3E%3D20.13-brightgreen) ![vue](https://img.shields.io/badge/Vue-3-42b883) ![uni-app](https://img.shields.io/badge/uni--app-H5%20%7C%20小程序-2b9939)
 
 </div>
 
@@ -39,7 +39,7 @@
 
 ## 快速开始
 
-需要 **Node.js 20 或更高版本**。
+需要 **Node.js 20.13 或更高版本**（`node -v` 查看）。
 
 ```bash
 git clone https://github.com/MsNan/bishe-kit.git
