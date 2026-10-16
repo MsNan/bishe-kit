@@ -1,0 +1,13 @@
+{
+  "name": "notice",
+  "label": "公告",
+  "icon": "Bell",
+  "public": true,
+  "fields": [
+    { "name": "title", "label": "标题", "type": "string", "required": true, "search": true },
+    { "name": "cover", "label": "封面", "type": "image" },
+    { "name": "content", "label": "内容", "type": "text", "required": true },
+    { "name": "category", "label": "分类", "type": "select", "options": ["通知", "活动", "新闻"] },
+    { "name": "published", "label": "已发布", "type": "bool" }
+  ]
+}

@@ -1,0 +1,4 @@
+html, body, #app { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; background: #f5f7fa; }
+.page-card { background: #fff; border-radius: 8px; padding: 20px; }
+.toolbar { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.thumb { width: 48px; height: 48px; border-radius: 4px; object-fit: cover; }

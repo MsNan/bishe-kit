@@ -1,0 +1,20 @@
+{
+  "name": "bishe-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vue3 + Element Plus 管理后台 + uni-app 用户端 + Express + SQLite 的全栈毕设/接单脚手架",
+  "type": "module",
+  "scripts": {
+    "setup": "npm --prefix server install && npm --prefix admin install && npm --prefix client install",
+    "dev": "node scripts/dev.js",
+    "dev:server": "npm --prefix server run dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev:client": "npm --prefix client run dev:h5",
+    "build": "npm --prefix admin run build && npm --prefix client run build:h5",
+    "seed": "npm --prefix server run seed",
+    "gen": "node scripts/gen-crud.js",
+    "test": "npm --prefix server test"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

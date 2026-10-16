@@ -1,0 +1,9 @@
+node_modules/
+dist/
+unpackage/
+server/data/
+server/uploads/
+*.db
+*.db.tmp
+.DS_Store
+.env.local

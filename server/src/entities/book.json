@@ -1,0 +1,15 @@
+{
+  "name": "book",
+  "label": "图书",
+  "icon": "Reading",
+  "public": true,
+  "fields": [
+    { "name": "title", "label": "书名", "type": "string", "required": true, "search": true },
+    { "name": "author", "label": "作者", "type": "string", "search": true },
+    { "name": "cover", "label": "封面", "type": "image" },
+    { "name": "price", "label": "价格", "type": "number" },
+    { "name": "stock", "label": "库存", "type": "int" },
+    { "name": "publish_date", "label": "出版日期", "type": "date" },
+    { "name": "intro", "label": "简介", "type": "text" }
+  ]
+}
