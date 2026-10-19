@@ -6,7 +6,7 @@
     "dev": "node --watch-path=src src/index.js",
     "start": "node src/index.js",
     "seed": "node src/seed.js",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"
