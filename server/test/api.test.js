@@ -87,3 +87,36 @@ test('上传：需要登录、类型和大小限制', async () => {
   assert.equal((await request(app).get(ok.body.data.url)).status, 200)
   assert.equal((await request(app).post('/api/upload').set(auth(user)).attach('file', Buffer.from('hi'), { filename: 'a.txt', contentType: 'text/plain' })).status, 400)
 })
+
+test('防越权：只能分配/管理不超过自己的权限', async () => {
+  const roles = (await request(app).get('/api/admin/system/roles').set(auth(admin))).body.data
+  const sa = roles.find((r) => r.code === 'super_admin'), editorRole = roles.find((r) => r.code === 'editor')
+  // 超管建一个「系统管理员」：能管用户和角色，但没有 *，也没有内容权限
+  const sys = await request(app).post('/api/admin/system/roles').set(auth(admin)).send({ code: 'sys_admin', name: '系统管理员', perms: ['user:read', 'user:write', 'role:read', 'role:write'] })
+  assert.equal(sys.body.code, 0)
+  await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'ops', password: '123456', type: 'admin', role_id: sys.body.data.id })
+  const ops = await login('ops', '123456')
+  const post = (url, body) => request(app).post(url).set(auth(ops)).send(body)
+  const put = (url, body) => request(app).put(url).set(auth(ops)).send(body)
+
+  // 角色：不能分配 * 或自己没有的权限，也不能留下半成品角色
+  assert.equal((await post('/api/admin/system/roles', { code: 'evil', name: 'x', perms: ['*'] })).status, 403)
+  assert.equal((await post('/api/admin/system/roles', { code: 'evil2', name: 'x', perms: ['book:write'] })).status, 403)
+  assert.equal((await post('/api/admin/system/roles', { code: 'evil3', name: 'x', perms: '*' })).status, 400)
+  assert.equal((await post('/api/admin/system/roles', { code: 'okrole', name: '用户查看', perms: ['user:read'] })).body.code, 0, '自己有的权限可以分配')
+  assert.equal((await put(`/api/admin/system/roles/${sys.body.data.id}`, { perms: ['user:read', 'user:write', 'role:read', 'role:write', 'notice:write'] })).status, 403, '不能给自己的角色加权限')
+  assert.equal((await put(`/api/admin/system/roles/${editorRole.id}`, { perms: [] })).status, 403, '不能改权限比自己高的角色')
+  // 用户：不能把人设成超管，不能改/删超管账号
+  assert.equal((await post('/api/admin/system/users', { username: 'evil_sa', password: '123456', type: 'admin', role_id: sa.id })).status, 403)
+  assert.equal((await post('/api/admin/system/users', { username: 'evil_x', password: '123456', type: 'admin', role_id: 99999 })).status, 400)
+  const users = (await request(app).get('/api/admin/system/users?size=100').set(auth(ops))).body.data.list
+  const me = users.find((u) => u.username === 'ops'), root = users.find((u) => u.username === 'admin')
+  assert.equal((await put(`/api/admin/system/users/${me.id}`, { role_id: sa.id })).status, 403, '不能给自己升级成超管')
+  assert.equal((await put(`/api/admin/system/users/${root.id}`, { password: 'hacked1' })).status, 403, '不能重置超管密码')
+  assert.equal((await request(app).delete(`/api/admin/system/users/${root.id}`).set(auth(ops))).status, 403)
+  assert.ok(await login('admin', 'admin123'), '超管密码未被改')
+  const roleCodes = (await request(app).get('/api/admin/system/roles').set(auth(admin))).body.data.map((r) => r.code)
+  assert.ok(!roleCodes.some((c) => c.startsWith('evil')), '被拒绝的请求没有建出角色')
+  // 超管不受限制
+  assert.equal((await request(app).put(`/api/admin/system/roles/${editorRole.id}`).set(auth(admin)).send({ perms: ['notice:read', 'notice:write', 'book:read', 'book:write'] })).body.code, 0)
+})
