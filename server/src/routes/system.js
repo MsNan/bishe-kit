@@ -52,9 +52,12 @@ r.post('/users', requirePerm('user:write'), (req, res) => {
 })
 r.put('/users/:id', requirePerm('user:write'), (req, res) => {
   const { nickname, role_id, status, password, phone } = req.body || {}
-  if (Number(req.params.id) === req.user.id && status === 0) throw new HttpError(400, '不能禁用自己')
+  const self = Number(req.params.id) === req.user.id
+  if (self && status === 0) throw new HttpError(400, '不能禁用自己')
   assertCanManageUser(req.user, req.params.id)
   assertCanAssignRole(req.user, role_id)
+  // 防自锁：升级已被上面拦住；降级可能把唯一的超管降没或把自己锁在外面，统一交给其他管理员操作
+  if (self && role_id !== undefined && role_id !== null && Number(role_id) !== req.user.role_id) throw new HttpError(400, '不能修改自己的角色，请让其他管理员操作')
   db().prepare('UPDATE users SET nickname = COALESCE(?, nickname), role_id = COALESCE(?, role_id), status = COALESCE(?, status), phone = COALESCE(?, phone) WHERE id = ?').run(nickname ?? null, role_id ?? null, status ?? null, phone ?? null, req.params.id)
   if (password) db().prepare('UPDATE users SET password = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), req.params.id)
   res.json({ code: 0 })
@@ -103,7 +106,11 @@ r.put('/roles/:id', requirePerm('role:write'), (req, res) => {
   if (role.code === 'super_admin') throw new HttpError(400, '超级管理员角色不可修改')
   if (beyond(req.user, rolePerms(role.id)).length) throw new HttpError(403, '不能修改权限比自己高的角色')
   const { name, perms } = req.body || {}
-  if (perms !== undefined) { checkPermsShape(perms); assertCanGrant(req.user, perms) }
+  if (perms !== undefined) {
+    checkPermsShape(perms); assertCanGrant(req.user, perms)
+    // 防自锁：自己所属角色只能被缩小（加权限已被上面拦住），缩小会把自己和同角色的人一起锁在外面
+    if (role.id === req.user.role_id && [...new Set(perms)].sort().join() !== rolePerms(role.id).sort().join()) throw new HttpError(400, '不能修改自己所属角色的权限，请让其他管理员操作')
+  }
   db().transaction(() => { if (name) db().prepare('UPDATE roles SET name = ? WHERE id = ?').run(name, role.id); if (perms !== undefined) savePerms(role.id, perms) })()
   res.json({ code: 0 })
 })

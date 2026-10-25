@@ -120,3 +120,30 @@ test('防越权：只能分配/管理不超过自己的权限', async () => {
   // 超管不受限制
   assert.equal((await request(app).put(`/api/admin/system/roles/${editorRole.id}`).set(auth(admin)).send({ perms: ['notice:read', 'notice:write', 'book:read', 'book:write'] })).body.code, 0)
 })
+
+test('防自锁：不能改自己的角色/自己角色的权限，系统至少保留一个超管', async () => {
+  const roles = (await request(app).get('/api/admin/system/roles').set(auth(admin))).body.data
+  const sa = roles.find((r) => r.code === 'super_admin'), editorRole = roles.find((r) => r.code === 'editor')
+  const users = () => request(app).get('/api/admin/system/users?size=100').set(auth(admin)).then((r) => r.body.data.list)
+  const root = (await users()).find((u) => u.username === 'admin')
+  // 唯一的超管不能把自己降级
+  assert.equal((await request(app).put(`/api/admin/system/users/${root.id}`).set(auth(admin)).send({ role_id: editorRole.id })).status, 400)
+  // 管理员不能缩小自己所属角色的权限（同角色的人会一起被锁在外面），改名可以
+  const lock = await request(app).post('/api/admin/system/roles').set(auth(admin)).send({ code: 'lock_admin', name: '锁测试', perms: ['user:read', 'user:write', 'role:read', 'role:write'] })
+  await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'locker', password: '123456', type: 'admin', role_id: lock.body.data.id })
+  await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'locker2', password: '123456', type: 'admin', role_id: lock.body.data.id })
+  const locker = await login('locker', '123456')
+  assert.equal((await request(app).put(`/api/admin/system/roles/${lock.body.data.id}`).set(auth(locker)).send({ perms: ['user:read'] })).status, 400)
+  assert.equal((await request(app).put(`/api/admin/system/roles/${lock.body.data.id}`).set(auth(locker)).send({ name: '锁测试2' })).body.code, 0)
+  // 也不能把自己换到更小的角色
+  const me = (await users()).find((u) => u.username === 'locker')
+  const small = await request(app).post('/api/admin/system/roles').set(auth(admin)).send({ code: 'small_role', name: '只读用户', perms: ['user:read'] })
+  assert.equal((await request(app).put(`/api/admin/system/users/${me.id}`).set(auth(locker)).send({ role_id: small.body.data.id })).status, 400)
+  assert.equal((await request(app).get('/api/admin/system/roles').set(auth(locker))).status, 200, '权限仍在')
+  // 超管之间可以互相调整，系统仍有超管
+  await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'root2', password: '123456', type: 'admin', role_id: sa.id })
+  const root2 = (await users()).find((u) => u.username === 'root2')
+  assert.equal((await request(app).put(`/api/admin/system/users/${root2.id}`).set(auth(admin)).send({ role_id: editorRole.id })).body.code, 0)
+  assert.equal((await request(app).put(`/api/admin/system/users/${root.id}`).set(auth(admin)).send({ role_id: sa.id, nickname: '超管' })).body.code, 0, '传入自己当前的角色不算修改')
+  assert.ok(await login('admin', 'admin123'))
+})

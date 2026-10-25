@@ -21,7 +21,7 @@
       <el-form :model="form" label-width="70px">
         <el-form-item label="编码"><el-input v-model="form.code" :disabled="!!form.id" placeholder="小写字母，如 teacher" /></el-form-item>
         <el-form-item label="名称"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="权限"><el-checkbox-group v-model="form.perms"><el-checkbox v-for="p in perms.filter((x) => x.code !== '*')" :key="p.code" :value="p.code">{{ p.name }}</el-checkbox></el-checkbox-group></el-form-item>
+        <el-form-item label="权限"><el-checkbox-group v-model="form.perms"><el-checkbox v-for="p in perms.filter((x) => x.code !== '*')" :key="p.code" :value="p.code" :disabled="!store.can(p.code)">{{ p.name }}</el-checkbox></el-checkbox-group></el-form-item>
       </el-form>
       <template #footer><el-button @click="visible = false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>
