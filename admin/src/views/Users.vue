@@ -30,20 +30,25 @@
         <el-form-item :label="form.id ? '重置密码' : '密码'"><el-input v-model="form.password" type="password" show-password :placeholder="form.id ? '留空不修改' : '至少 6 位'" /></el-form-item>
         <el-form-item label="昵称"><el-input v-model="form.nickname" /></el-form-item>
         <el-form-item v-if="!form.id" label="类型"><el-radio-group v-model="form.type"><el-radio value="admin">后台账号</el-radio><el-radio value="user">注册用户</el-radio></el-radio-group></el-form-item>
-        <el-form-item v-if="form.type === 'admin'" label="角色"><el-select v-model="form.role_id"><el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" /></el-select></el-form-item>
+        <el-form-item v-if="form.type === 'admin'" label="角色"><el-select v-model="form.role_id"><!-- <el-option v-for="r in roles" :key="r.id" :label="r.name" :value="r.id" /> -->
+            <el-option v-for="r in assignableRoles" :key="r.id" :label="r.name" :value="r.id" /></el-select></el-form-item>
       </el-form>
       <template #footer><el-button @click="visible = false">取消</el-button><el-button type="primary" @click="save">保存</el-button></template>
     </el-dialog>
   </div>
 </template>
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+// import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import http from '../api/http.js'
 import { useUserStore } from '../stores/user.js'
 const store = useUserStore()
 const query = reactive({ page: 1, size: 10, type: '', keyword: '' })
 const rows = ref([]), total = ref(0), roles = ref([]), visible = ref(false), form = ref({})
+// 只列出当前账号能分配的角色（与服务端 assertCanAssignRole 一致：角色的权限都不能超过自己，「全部权限」只有超管能分配）
+const isSuper = computed(() => store.perms.includes('*'))
+const assignableRoles = computed(() => roles.value.filter((r) => (r.perms || []).every((p) => (p === '*' ? isSuper.value : store.can(p)))))
 async function load() { const d = await http.get('/admin/system/users', { params: query }); rows.value = d.list; total.value = d.total }
 const reload = () => { query.page = 1; load() }
 onMounted(async () => { load(); if (store.can('role:read')) roles.value = await http.get('/admin/system/roles') })
