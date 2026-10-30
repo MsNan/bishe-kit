@@ -31,6 +31,9 @@ export function bootstrap() {
 export function createApp() {
   const entities = bootstrap()
   const app = express()
+  // TRUST_PROXY=1 表示信任一层反向代理（用 X-Forwarded-For 取真实 IP），登录限流依赖它
+  const tp = config.trustProxy
+  if (tp && tp !== 'false' && tp !== '0') app.set('trust proxy', /^\d+$/.test(tp) ? Number(tp) : tp === 'true' ? true : tp)
   app.use(cors())
   app.use(express.json({ limit: '1mb' }))
   app.use(parseToken)

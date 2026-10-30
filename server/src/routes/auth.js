@@ -2,16 +2,34 @@ import { Router } from 'express'
 import bcrypt from 'bcryptjs'
 import { getDb } from '../db.js'
 import { sign, requireLogin, HttpError } from '../auth.js'
+import { config } from '../config.js'
+import { createLoginLimiter } from '../login-limiter.js'
 
 const r = Router()
+const limiter = createLoginLimiter({
+  maxFails: config.loginMaxFails,
+  maxIpFails: config.loginMaxIpFails,
+  windowMs: config.loginLockMinutes * 60_000,
+  lockMs: config.loginLockMinutes * 60_000,
+})
 const pub = (u) => ({ id: u.id, username: u.username, nickname: u.nickname, avatar: u.avatar, phone: u.phone, type: u.type, perms: u.perms ?? [] })
 
 function login(type) {
   return (req, res) => {
     const { username, password } = req.body || {}
     if (!username || !password) throw new HttpError(400, '请输入账号和密码')
+    // 锁定期间先拒绝，不校验密码（否则仍能借此试出密码）
+    const wait = limiter.retryAfter(req.ip, username)
+    if (wait) {
+      res.set('Retry-After', String(wait))
+      throw new HttpError(429, `登录失败次数过多，请 ${Math.ceil(wait / 60)} 分钟后再试`)
+    }
     const u = getDb().prepare('SELECT * FROM users WHERE username = ?').get(username)
-    if (!u || !bcrypt.compareSync(password, u.password)) throw new HttpError(400, '账号或密码错误')
+    if (!u || !bcrypt.compareSync(password, u.password)) {
+      limiter.fail(req.ip, username)
+      throw new HttpError(400, '账号或密码错误')
+    }
+    limiter.success(req.ip, username)
     if (u.status !== 1) throw new HttpError(403, '账号已被禁用')
     if (u.type !== type) throw new HttpError(403, type === 'admin' ? '该账号不是管理端账号' : '管理端账号请在后台登录')
     res.json({ code: 0, data: { token: sign(u), user: pub(u) } })

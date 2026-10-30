@@ -147,3 +147,13 @@ test('防自锁：不能改自己的角色/自己角色的权限，系统至少�
   assert.equal((await request(app).put(`/api/admin/system/users/${root.id}`).set(auth(admin)).send({ role_id: sa.id, nickname: '超管' })).body.code, 0, '传入自己当前的角色不算修改')
   assert.ok(await login('admin', 'admin123'))
 })
+
+test('登录限流：同一 IP 对同一账号连续输错会被临时锁定，不影响其他账号', async () => {
+  const bad = () => request(app).post('/api/auth/admin/login').send({ username: 'viewer', password: 'wrong' })
+  for (let i = 0; i < 5; i++) assert.equal((await bad()).status, 400)
+  const locked = await request(app).post('/api/auth/admin/login').send({ username: 'viewer', password: 'viewer123' })
+  assert.equal(locked.status, 429, '锁定期间密码正确也不放行')
+  assert.ok(Number(locked.headers['retry-after']) > 0)
+  assert.match(locked.body.msg, /分钟后再试/)
+  assert.ok(await login('editor', 'editor123'), '其他账号不受影响')
+})
