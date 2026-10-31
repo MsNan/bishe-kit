@@ -157,3 +157,19 @@ test('登录限流：同一 IP 对同一账号连续输错会被临时锁定，�
   assert.match(locked.body.msg, /分钟后再试/)
   assert.ok(await login('editor', 'editor123'), '其他账号不受影响')
 })
+
+test('前台用户：不能被分配后台角色（与新建用户时的规则一致）', async () => {
+  const roles = (await request(app).get('/api/admin/system/roles').set(auth(admin))).body.data
+  const sa = roles.find((r) => r.code === 'super_admin')
+  const list = () => request(app).get('/api/admin/system/users?size=100').set(auth(admin)).then((r) => r.body.data.list)
+  const u = (await list()).find((x) => x.username === 'test')
+  assert.equal(u.type, 'user')
+  assert.equal((await request(app).put(`/api/admin/system/users/${u.id}`).set(auth(admin)).send({ role_id: sa.id })).status, 400, '前台用户不能挂角色')
+  assert.equal((await list()).find((x) => x.username === 'test').role_id, null, '角色没有被写进去')
+  // 其他字段照常可改；显式传 null 不算分配
+  assert.equal((await request(app).put(`/api/admin/system/users/${u.id}`).set(auth(admin)).send({ nickname: '测试用户', role_id: null })).body.code, 0)
+  assert.equal((await list()).find((x) => x.username === 'test').nickname, '测试用户')
+  // 新建前台用户时传 role_id 会被忽略（原有行为）
+  await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'u_role', password: '123456', type: 'user', role_id: sa.id })
+  assert.equal((await list()).find((x) => x.username === 'u_role').role_id, null)
+})

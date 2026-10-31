@@ -26,9 +26,10 @@ function assertCanAssignRole(user, roleId) {
 }
 /** 不能修改/删除权限比自己高的账号（例如普通管理员改超管密码） */
 function assertCanManageUser(user, targetId) {
-  const t = db().prepare('SELECT role_id FROM users WHERE id = ?').get(targetId)
+  const t = db().prepare('SELECT type, role_id FROM users WHERE id = ?').get(targetId)
   if (!t) throw new HttpError(404, '用户不存在')
   if (t.role_id && beyond(user, rolePerms(t.role_id)).length) throw new HttpError(403, '不能操作权限比自己高的账号')
+  return t
 }
 
 r.get('/users', requirePerm('user:read'), (req, res) => {
@@ -54,7 +55,9 @@ r.put('/users/:id', requirePerm('user:write'), (req, res) => {
   const { nickname, role_id, status, password, phone } = req.body || {}
   const self = Number(req.params.id) === req.user.id
   if (self && status === 0) throw new HttpError(400, '不能禁用自己')
-  assertCanManageUser(req.user, req.params.id)
+  const target = assertCanManageUser(req.user, req.params.id)
+  // 角色只对管理端账号有意义（新建时前台用户的 role_id 也会被忽略），前台用户挂上角色会让列表显示错乱、角色也删不掉
+  if (target.type !== 'admin' && role_id !== undefined && role_id !== null) throw new HttpError(400, '前台用户不能分配后台角色')
   assertCanAssignRole(req.user, role_id)
   // 防自锁：升级已被上面拦住；降级可能把唯一的超管降没或把自己锁在外面，统一交给其他管理员操作
   if (self && role_id !== undefined && role_id !== null && Number(role_id) !== req.user.role_id) throw new HttpError(400, '不能修改自己的角色，请让其他管理员操作')
