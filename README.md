@@ -33,7 +33,7 @@
 - **文件上传**：图片上传（限制类型和 5MB 大小），后台表单里的图片字段自动变成上传组件，用户端可以换头像
 - **零配置数据库**：SQLite（sql.js / WebAssembly 版），**不用装 MySQL，也不用编译原生模块**，Windows 也能直接跑；首次启动自动写入演示数据
 - **uni-app 用户端**：H5、微信小程序都能编译；包含请求封装（统一报错、401 跳转登录）、Pinia、登录拦截、下拉刷新和触底分页
-- **API 测试**：覆盖登录认证、RBAC、防越权、防自锁、CRUD、上传、登录限流，一共 12 个用例，GitHub Actions 在 Node 20/22 上自动跑
+- **API 测试**：覆盖登录认证、RBAC、防越权、防自锁、CRUD、上传、登录限流，一共 12 个用例，GitHub Actions 在 Node 20/22 上自动跑；CI 还会构建后台和 uni-app H5，并用 CRUD 生成器生成一个示例模块做冒烟检查
 - **AI 提示词包**：[docs/prompts](docs/prompts)，让 Cursor / Claude Code / Trae 按项目规范扩展功能
 - **Docker（可选）**：一个镜像同时提供 API、后台和 H5
 

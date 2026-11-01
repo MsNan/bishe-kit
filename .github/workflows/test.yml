@@ -21,3 +21,63 @@ jobs:
         working-directory: server
       - run: npm test
         working-directory: server
+
+  # 前端构建检查：后台（Vite）和 uni-app 用户端（H5）都要能 npm ci + 构建通过
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            admin/package-lock.json
+            client/package-lock.json
+      - run: npm ci
+        working-directory: admin
+      - run: npm run build
+        working-directory: admin
+      - run: npm ci
+        working-directory: client
+      - run: npm run build:h5
+        working-directory: client
+
+  # CRUD 生成器冒烟：生成一个带 --client 的模块 → 用户端仍能构建 → 后端能启动并提供新接口
+  generator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - name: 生成示例模块
+        run: >
+          node scripts/gen-crud.js product 商品
+          name:string:名称:required:search price:number:价格 cover:image:图片
+          'category:select:分类:options=数码|服装' desc:text:描述 on_sale:bool:上架
+          --client
+      - name: 首页仍是 pages.json 第一项
+        run: node -e "const p=JSON.parse(require('fs').readFileSync('client/src/pages.json','utf8'));if(p.pages[0].path!=='pages/index/index'||!p.pages.some(x=>x.path==='pages/product/list'))process.exit(1)"
+      - run: npm ci
+        working-directory: client
+      - run: npm run build:h5
+        working-directory: client
+      - run: npm ci
+        working-directory: server
+      - name: 后端启动并提供新接口
+        working-directory: server
+        env:
+          DB_PATH: ${{ runner.temp }}/smoke.db
+          UPLOAD_DIR: ${{ runner.temp }}/uploads
+          PORT: 3123
+        run: |
+          node src/index.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://localhost:3123/api/health >/dev/null && break; sleep 1; done
+          curl -fsS 'http://localhost:3123/api/product?page=1&size=10' | tee /dev/stderr | grep -q '"code":0' || { cat server.log; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3123/api/admin/product)
+          [ "$code" = 401 ] || { echo "未登录访问后台接口应为 401，实际 $code"; cat server.log; exit 1; }
