@@ -28,12 +28,12 @@
 
 - **双端登录（JWT）**：后台账号（`type=admin`）和用户端账号（`type=user`）分开登录、互相不能串用；用户端支持注册；登录限流：同一 IP 对同一账号连续输错 5 次锁 15 分钟，同一 IP 换账号累计输错 20 次也会锁（防撞库），只锁这个 IP，不会被别人恶意锁号
 - **RBAC 权限**：角色和权限码（`book:read`、`book:write`……）可以在后台勾选分配，接口和菜单同时生效；内置超级管理员、内容编辑、只读访客三个角色；防越权：非超管只能分配自己拥有的权限，不能把人设成超管，也不能改、删权限比自己高的账号和角色；防自锁：不能改自己的角色或自己所属角色的权限（避免唯一的超管把自己降级），角色编辑页不能勾选自己没有的权限；角色只给后台账号，接口也拒绝给用户端账号分配角色
-- **通用 CRUD**：在 `server/src/entities/*.json` 里定义实体，后端自动建表、生成接口和权限，后台自动出菜单、列表、搜索、分页和表单
+- **通用 CRUD**：在 `server/src/entities/*.json` 里定义实体，后端自动建表、生成接口和权限，后台自动出菜单、列表、搜索、分页和表单；列表页有「导出」按钮，按当前搜索条件导出 CSV（带 BOM，Excel 直接打开中文不乱码；文本以 `=`、`+`、`-`、`@` 开头时加单引号，防止被 Excel 当成公式执行）
 - **CRUD 生成器**：`npm run gen` 一条命令生成新模块，加上 `--client` 还会生成 uni-app 列表页和详情页
 - **文件上传**：图片上传（限制类型和 5MB 大小），后台表单里的图片字段自动变成上传组件，用户端可以换头像
 - **零配置数据库**：SQLite（sql.js / WebAssembly 版），**不用装 MySQL，也不用编译原生模块**，Windows 也能直接跑；首次启动自动写入演示数据
 - **uni-app 用户端**：H5、微信小程序都能编译；包含请求封装（统一报错、401 跳转登录）、Pinia、登录拦截、下拉刷新和触底分页
-- **API 测试**：覆盖登录认证、RBAC、防越权、防自锁、CRUD、上传、登录限流，一共 12 个用例，GitHub Actions 在 Node 20/22 上自动跑；CI 还会构建后台和 uni-app H5，并用 CRUD 生成器生成一个示例模块做冒烟检查
+- **API 测试**：覆盖登录认证、RBAC、防越权、防自锁、CRUD、上传、登录限流、CSV 导出，一共 13 个用例，GitHub Actions 在 Node 20/22 上自动跑；CI 还会构建后台和 uni-app H5，并用 CRUD 生成器生成一个示例模块做冒烟检查
 - **AI 提示词包**：[docs/prompts](docs/prompts)，让 Cursor / Claude Code / Trae 按项目规范扩展功能
 - **Docker（可选）**：一个镜像同时提供 API、后台和 H5
 
@@ -107,6 +107,7 @@ bishe-kit/
 | GET | `/api/admin/meta` · `/api/admin/stats` | 后台菜单和权限、统计数据 |
 | CRUD | `/api/admin/system/users` · `/roles` · `/permissions` | 用户、角色、权限管理 |
 | CRUD | `/api/admin/<实体>` | 通用增删改查（需要 `<实体>:read` / `<实体>:write` 权限） |
+| GET | `/api/admin/<实体>/export?keyword=` | 按筛选条件导出 CSV（需要 `<实体>:read`） |
 | GET | `/api/<实体>` · `/api/<实体>/:id` | 用户端公开只读接口（实体设置了 `public: true` 时开放；有 `published` 字段的只返回已发布的数据） |
 
 统一返回格式：`{ code: 0, data }`；出错时返回对应的 HTTP 状态码，格式为 `{ code, msg }`。
@@ -135,6 +136,7 @@ docker compose up -d --build
 | `LOGIN_MAX_FAILS` | `5` | 同一 IP 对同一账号允许连续输错的次数，设为 `0` 关闭登录限流 |
 | `LOGIN_MAX_IP_FAILS` | `20` | 同一 IP 不论账号累计输错的次数 |
 | `LOGIN_LOCK_MINUTES` | `15` | 统计窗口和锁定时长（分钟） |
+| `EXPORT_LIMIT` | `10000` | 单次导出的最多条数，超过时提示先筛选 |
 
 登录限流存在内存里，重启后清零；多实例部署需要换成 Redis 等共享存储。
 

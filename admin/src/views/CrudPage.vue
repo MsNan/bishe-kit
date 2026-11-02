@@ -4,6 +4,7 @@
       <el-input v-if="hasSearch" v-model="query.keyword" :placeholder="`搜索${searchLabels}`" clearable style="width: 240px" @keyup.enter="reload" @clear="reload" />
       <el-button v-if="hasSearch" type="primary" icon="Search" @click="reload">搜索</el-button>
       <div style="flex: 1" />
+      <el-button icon="Download" :loading="exporting" @click="exportCsv">导出</el-button>
       <el-button v-if="canWrite" type="primary" icon="Plus" @click="openForm()">新增{{ entity.label }}</el-button>
     </div>
     <el-table v-loading="loading" :data="rows" border stripe>
@@ -67,6 +68,21 @@ async function load() {
 }
 const reload = () => { query.page = 1; load() }
 watch(() => route.params.name, reload, { immediate: true })
+
+// 按当前搜索条件导出全部数据（CSV，Excel 可直接打开）
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const res = await http.get(`/admin/${entity.value.name}/export`, { params: { keyword: query.keyword }, responseType: 'blob', raw: true })
+    const m = /filename\*=UTF-8''([^;]+)/.exec(res.headers['content-disposition'] || '')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(res.data)
+    a.download = m ? decodeURIComponent(m[1]) : `${entity.value.name}.csv`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  } finally { exporting.value = false }
+}
 
 const visible = ref(false), saving = ref(false), formRef = ref(), form = ref({})
 function openForm(row) { form.value = row ? { ...row } : {}; visible.value = true }

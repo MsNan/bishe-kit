@@ -173,3 +173,27 @@ test('前台用户：不能被分配后台角色（与新建用户时的规则�
   await request(app).post('/api/admin/system/users').set(auth(admin)).send({ username: 'u_role', password: '123456', type: 'user', role_id: sa.id })
   assert.equal((await list()).find((x) => x.username === 'u_role').role_id, null)
 })
+
+test('导出 CSV：按筛选条件导出、需要查看权限、防公式注入', async () => {
+  const mk = (b) => request(app).post('/api/admin/book').set(auth(admin)).send(b)
+  assert.equal((await mk({ title: '导出测试,带逗号', author: '张"三"', price: 12.5, stock: -1 })).body.code, 0)
+  assert.equal((await mk({ title: '=HYPERLINK("http://x")', author: '导出测试', intro: '第一行\n第二行' })).body.code, 0)
+  const res = await request(app).get('/api/admin/book/export?keyword=导出测试').set(auth(viewer)).buffer(true).parse((r, cb) => { let d = ''; r.setEncoding('utf8'); r.on('data', (c) => { d += c }); r.on('end', () => cb(null, d)) })
+  assert.equal(res.status, 200, '只读角色有 book:read 就能导出')
+  assert.match(res.headers['content-type'], /text\/csv/)
+  assert.match(res.headers['content-disposition'], /attachment; filename="book_\d{8}\.csv"; filename\*=UTF-8''/)
+  const text = res.body
+  assert.equal(text.charCodeAt(0), 0xfeff, '带 BOM，Excel 打开中文不乱码')
+  const lines = text.slice(1).split('\r\n')
+  assert.equal(lines[0], 'ID,书名,作者,封面,价格,库存,出版日期,简介,创建时间,更新时间')
+  assert.ok(text.includes('"导出测试,带逗号","张""三""",,12.5,-1,'), '逗号/引号转义，负数不被当成公式改写')
+  assert.ok(text.includes(`"'=HYPERLINK(""http://x"")",导出测试,`), '文本以 = 开头加单引号前缀')
+  assert.ok(text.includes('"第一行\n第二行"'), '换行的单元格加引号')
+  assert.equal(text.match(/导出测试/g).length, 2, '只导出匹配关键词的记录')
+  assert.equal((await request(app).get('/api/admin/book/export').set(auth(user))).status, 403, '用户端 token 不能导出')
+  assert.equal((await request(app).get('/api/admin/book/export')).status, 401)
+  // bool 字段导出为 是/否
+  await request(app).post('/api/admin/notice').set(auth(admin)).send({ title: '导出公告', content: 'c', published: true })
+  const n = await request(app).get('/api/admin/notice/export?keyword=导出公告').set(auth(admin))
+  assert.match(n.text, /导出公告,,c,,是,/)
+})

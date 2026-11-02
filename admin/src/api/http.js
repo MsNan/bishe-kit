@@ -9,10 +9,14 @@ http.interceptors.request.use((cfg) => {
   return cfg
 })
 http.interceptors.response.use(
-  (res) => res.data.data,
-  (err) => {
+  // raw: true 时返回完整响应（下载文件用）
+  (res) => (res.config.raw ? res : res.data.data),
+  async (err) => {
     const status = err.response?.status
-    const msg = err.response?.data?.msg || '网络错误'
+    let data = err.response?.data
+    // 下载文件（responseType: 'blob'）出错时，后端的 JSON 错误信息也被包成了 Blob
+    if (data instanceof Blob) { try { data = JSON.parse(await data.text()) } catch { data = null } }
+    const msg = data?.msg || '网络错误'
     if (status === 401) {
       localStorage.removeItem('admin_token')
       router.replace({ path: '/login', query: { redirect: router.currentRoute.value.fullPath } })
